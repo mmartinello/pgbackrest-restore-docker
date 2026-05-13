@@ -19,6 +19,7 @@ CLI_TIME=false
 CLI_DATABASES=false
 CLI_EXCLUDE_DATABASES=false
 CLI_PORT=false
+CLI_DRY_RUN=false
 
 # Check if the jq command exists
 jq_cmd_path=$(which jq 2>/dev/null)
@@ -38,6 +39,7 @@ usage() {
     echo "  -d, --databases 'db1 db2 ...'         Databases to restore (default: all)"
     echo "  -e, --exclude 'db1 db2 ...'           Databases to exclude"
     echo "  -p, --port PORT                       PostgreSQL host port"
+    echo "  --dry-run                             Print the restore command without executing it"
     echo "  -h, --help                            Show this help"
     echo ""
     echo "If no options are provided, all parameters are asked interactively."
@@ -349,6 +351,8 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             fi
             shift 2 ;;
+        --dry-run)
+            CLI_DRY_RUN=true; shift ;;
         -h|--help)
             usage; exit 0 ;;
         *)
@@ -459,11 +463,13 @@ else
     restore_cmd+=" --target-timeline=current"
 fi
 
-# Print debug
 echo
 echo "Restore command:"
 echo "$restore_cmd"
-exit
+
+if $CLI_DRY_RUN; then
+    exit 0
+fi
 
 # Ensure that PostgreSQL datadir is empty
 echo
