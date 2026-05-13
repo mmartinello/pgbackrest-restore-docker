@@ -1,0 +1,41 @@
+services:
+  change-vol-ownership:
+    image: debian
+    user: root
+    volumes:
+      - data:/var/lib/postgresql/data
+      - pgbackrest_lib:/var/lib/pgbackrest
+      - pgbackrest_logs:/var/log/pgbackrest
+      - pgbackrest_spool:/var/spool/pgbackrest
+      - postgresql_log:/var/log/postgresql
+    command: >
+      sh -ceux "
+      chown 999:999 /var/lib/postgresql/data;
+      chown 999:999 /var/lib/pgbackrest;
+      chown 999:999 /var/log/pgbackrest;
+      chown 999:999 /var/spool/pgbackrest;
+      chown 999:999 /var/log/postgresql
+      "
+
+  postgresql:
+    image: mmartinello/postgresql-pgbackrest:${POSTGRES_VERSION:-16}
+    env_file: .env
+    volumes:
+      - data:${PGDATA:-/var/lib/postgresql/data}
+      - postgresql_log:/var/log/postgresql
+      - ./pgbackrest.conf:/etc/pgbackrest.conf
+      - pgbackrest_logs:/var/log/pgbackrest
+      - pgbackrest_spool:/var/spool/pgbackrest
+      - pgbackrest_lib:/var/lib/pgbackrest
+    ports:
+      - ${POSTGRESQL_HOST_PORT:-5432}:5432
+    depends_on:
+      change-vol-ownership:
+        condition: service_completed_successfully
+
+volumes:
+  data:
+  postgresql_log:
+  pgbackrest_lib:
+  pgbackrest_logs:
+  pgbackrest_spool:
