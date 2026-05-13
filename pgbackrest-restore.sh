@@ -489,9 +489,11 @@ else
     restore_cmd+=" --target-timeline=latest"
 fi
 
-echo
-echo "Restore command:"
-echo "$restore_cmd"
+if $CLI_DRY_RUN || $CLI_DEBUG; then
+    echo
+    echo "Restore command:"
+    echo "$restore_cmd"
+fi
 
 if $CLI_DRY_RUN; then
     exit 0
