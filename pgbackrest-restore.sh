@@ -21,6 +21,7 @@ CLI_EXCLUDE_DATABASES=false
 CLI_PORT=false
 CLI_DRY_RUN=false
 CLI_DEBUG=false
+CLI_MODE=false
 
 # Check if the jq command exists
 jq_cmd_path=$(which jq 2>/dev/null)
@@ -78,18 +79,24 @@ select_postgres_version() {
 
 # Select the PostgreSQL host port
 select_postgresql_port() {
+    local default_port=""
+    if [ -f ".env" ]; then
+        default_port=$(grep -E '^POSTGRESQL_HOST_PORT=' .env | cut -d= -f2)
+    fi
+    [ -z "$default_port" ] && default_port="5432"
+
     if $CLI_PORT; then
         export POSTGRESQL_HOST_PORT
         echo "PostgreSQL host port: $POSTGRESQL_HOST_PORT"
         return 0
     fi
 
-    local default_port=""
-
-    if [ -f ".env" ]; then
-        default_port=$(grep -E '^POSTGRESQL_HOST_PORT=' .env | cut -d= -f2)
+    if $CLI_MODE; then
+        POSTGRESQL_HOST_PORT="$default_port"
+        export POSTGRESQL_HOST_PORT
+        echo "PostgreSQL host port: $POSTGRESQL_HOST_PORT"
+        return 0
     fi
-    [ -z "$default_port" ] && default_port="5432"
 
     while true; do
         read -p "Which port should PostgreSQL listen on? (ENTER for default: $default_port): " port_input
@@ -111,7 +118,7 @@ select_postgresql_port() {
 
 # Select databases to be restored
 select_databases() {
-    if $CLI_DATABASES; then
+    if $CLI_DATABASES || $CLI_MODE; then
         return 0
     fi
 
@@ -122,7 +129,7 @@ select_databases() {
 
 # Select databases to be excluded
 select_excluded_databases() {
-    if $CLI_EXCLUDE_DATABASES; then
+    if $CLI_EXCLUDE_DATABASES || $CLI_MODE; then
         return 0
     fi
 
@@ -134,6 +141,10 @@ select_excluded_databases() {
 # Select which time point to be restored
 select_time() {
     if $CLI_TIME; then
+        return 0
+    fi
+    if $CLI_MODE; then
+        time_string=""
         return 0
     fi
 
@@ -330,6 +341,7 @@ choose_backup() {
 }
 
 # Parse command-line arguments
+[ $# -gt 0 ] && CLI_MODE=true
 while [[ $# -gt 0 ]]; do
     case "$1" in
         -V|--postgres-version)
