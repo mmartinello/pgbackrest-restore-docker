@@ -20,6 +20,7 @@ CLI_DATABASES=false
 CLI_EXCLUDE_DATABASES=false
 CLI_PORT=false
 CLI_DRY_RUN=false
+CLI_DEBUG=false
 
 # Check if the jq command exists
 jq_cmd_path=$(which jq 2>/dev/null)
@@ -40,6 +41,7 @@ usage() {
     echo "  -e, --exclude 'db1 db2 ...'           Databases to exclude"
     echo "  -p, --port PORT                       PostgreSQL host port"
     echo "  --dry-run                             Print the restore command without executing it"
+    echo "  --debug                               Print debug information"
     echo "  -h, --help                            Show this help"
     echo ""
     echo "If no options are provided, all parameters are asked interactively."
@@ -353,6 +355,8 @@ while [[ $# -gt 0 ]]; do
             shift 2 ;;
         --dry-run)
             CLI_DRY_RUN=true; shift ;;
+        --debug)
+            CLI_DEBUG=true; shift ;;
         -h|--help)
             usage; exit 0 ;;
         *)
@@ -398,10 +402,14 @@ select_postgresql_port
 echo
 
 # Print debug
-#echo "Stanza: $stanza"
-#echo "Databases: $databases_string"
-#echo "Backup set: $backup_set"
-#echo "Time: $time_string"
+if $CLI_DEBUG; then
+    echo "Debug information:"
+    echo "* Stanza: $stanza"
+    echo "* Databases: $databases_string"
+    echo "* Backup set: $backup_set"
+    echo "* Time: $time_string"
+    echo
+fi
 
 # Basic pgBackRest restore command
 restore_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER"
@@ -463,9 +471,11 @@ else
     restore_cmd+=" --target-timeline=current"
 fi
 
-echo
-echo "Restore command:"
-echo "$restore_cmd"
+if $CLI_DEBUG; then
+    echo
+    echo "Restore command:"
+    echo "$restore_cmd"
+fi
 
 if $CLI_DRY_RUN; then
     exit 0
