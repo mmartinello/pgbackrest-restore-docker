@@ -462,10 +462,11 @@ if [ -n "$time_string" ]; then
     check_date "$time_string"
     check_date_result=$?
 
-    echo "Check date result: $check_date_result"
     case "$check_date_result" in
         0)
-            restore_cmd+=" --target=\"$time_string\" --type=time"
+            restore_cmd+=" --type=time"
+            restore_cmd+=" --target=\"$time_string\""
+            restore_cmd+=" --target-action=promote"
             ;;
         1)
             echo "Wrong PITR date '$time_string', exiting now!"
@@ -476,18 +477,21 @@ if [ -n "$time_string" ]; then
             exit 1
             ;;
     esac
+elif [ -n "$databases_string" ] || [ -n "$databases_excluded_string" ]; then
+    # Selective restore: stop at consistent point to avoid WAL replay errors
+    # on excluded/non-included databases
+    echo "Selective restore requested, stopping at consistent point ..."
+    restore_cmd+=" --type=immediate"
+    restore_cmd+=" --target-action=promote"
 else
     echo "No PITR requested, restoring last full state ..."
-
     restore_cmd+=" --type=default"
-    restore_cmd+=" --target-timeline=current"
+    restore_cmd+=" --target-timeline=latest"
 fi
 
-if $CLI_DEBUG; then
-    echo
-    echo "Restore command:"
-    echo "$restore_cmd"
-fi
+echo
+echo "Restore command:"
+echo "$restore_cmd"
 
 if $CLI_DRY_RUN; then
     exit 0
