@@ -17,7 +17,6 @@ CLI_STANZA=false
 CLI_BACKUP_SET=false
 CLI_TIME=false
 CLI_DATABASES=false
-CLI_EXCLUDE_DATABASES=false
 CLI_PORT=false
 CLI_DRY_RUN=false
 CLI_DEBUG=false
@@ -63,7 +62,6 @@ usage_restore() {
     echo "  -b, --backup-set LABEL|latest         Backup label, or 'latest' for most recent"
     echo "  -t, --time 'YYYY-MM-DD HH:MM:SS'      Point-in-time recovery target"
     echo "  -d, --databases 'db1 db2 ...'         Databases to restore (default: all)"
-    echo "  -e, --exclude 'db1 db2 ...'           Databases to exclude"
     echo "  -p, --port PORT                       PostgreSQL host port"
     echo "  --dry-run                             Print the restore command without executing it"
     echo "  --debug                               Print debug information"
@@ -149,17 +147,6 @@ select_databases() {
     msg="Which database/s do you want to restore"
     msg+=" (space separated values, press ENTER for all databases)?"
     read -p "$msg " databases_string
-}
-
-# Select databases to be excluded
-select_excluded_databases() {
-    if $CLI_EXCLUDE_DATABASES || $CLI_MODE; then
-        return 0
-    fi
-
-    msg="Which database/s do you want to EXCLUDE from restore"
-    msg+=" (space separated values, press ENTER for no database excluded)?"
-    read -p "$msg " databases_excluded_string
 }
 
 # Select which time point to be restored
@@ -515,8 +502,6 @@ case "$1" in
                     time_string="$2"; CLI_TIME=true; CLI_MODE=true; shift 2 ;;
                 -d|--databases)
                     databases_string="$2"; CLI_DATABASES=true; CLI_MODE=true; shift 2 ;;
-                -e|--exclude)
-                    databases_excluded_string="$2"; CLI_EXCLUDE_DATABASES=true; CLI_MODE=true; shift 2 ;;
                 -p|--port)
                     if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
                         POSTGRESQL_HOST_PORT="$2"; CLI_PORT=true; CLI_MODE=true
@@ -593,10 +578,6 @@ fi
 select_databases
 echo
 
-# Select databases to exclude
-select_excluded_databases
-echo
-
 # Select the PostgreSQL host port
 select_postgresql_port
 echo
@@ -634,17 +615,6 @@ else
     echo "No database selected, restoring all databases ..."
 fi
 
-# Exclude databases
-if [ -n "$databases_excluded_string" ]; then
-    databases=($databases_excluded_string)
-
-    for database in "${databases[@]}"; do
-        restore_cmd+=" --db-exclude=$database"
-    done
-else
-    echo "No database to be excluded ..."
-fi
-
 # Point In Time Recovery
 if [ -n "$time_string" ]; then
     check_date "$time_string"
@@ -665,7 +635,7 @@ if [ -n "$time_string" ]; then
             exit 1
             ;;
     esac
-elif [ -n "$databases_string" ] || [ -n "$databases_excluded_string" ]; then
+elif [ -n "$databases_string" ]; then
     # Selective restore: stop at consistent point to avoid WAL replay errors
     # on excluded/non-included databases
     echo "Selective restore requested, stopping at consistent point ..."
