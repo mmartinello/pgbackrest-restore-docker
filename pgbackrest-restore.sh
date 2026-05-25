@@ -114,9 +114,18 @@ select_postgresql_port() {
         default_port=$(grep -E '^POSTGRESQL_HOST_PORT=' .env | cut -d= -f2)
         local range
         range=$(grep -E '^POSTGRESQL_HOST_PORT_RANGE=' .env | cut -d= -f2)
-        if [ -n "$range" ]; then
+        if [ -z "$range" ]; then
+            echo "WARNING: POSTGRESQL_HOST_PORT_RANGE is not set in .env — only the default port will be tried; if it is busy the script will exit with an error."
+        elif [[ "$range" =~ ^[0-9]+-[0-9]+$ ]]; then
             port_range_start="${range%-*}"
             port_range_end="${range#*-}"
+            if [ "$port_range_start" -lt 1 ] || [ "$port_range_end" -gt 65535 ] || [ "$port_range_start" -ge "$port_range_end" ]; then
+                echo "WARNING: POSTGRESQL_HOST_PORT_RANGE '$range' is invalid (ports must be 1-65535 and start must be less than end) — only the default port will be tried; if it is busy the script will exit with an error."
+                port_range_start=""
+                port_range_end=""
+            fi
+        else
+            echo "WARNING: POSTGRESQL_HOST_PORT_RANGE '$range' is not a valid range (expected format: START-END) — only the default port will be tried; if it is busy the script will exit with an error."
         fi
     fi
     [ -z "$default_port" ] && default_port="5432"
@@ -162,7 +171,7 @@ select_postgresql_port() {
                     exit 1
                 fi
             else
-                echo "Error: port $default_port is already in use and POSTGRESQL_HOST_PORT_RANGE is not set in .env."
+                echo "Error: port $default_port is already in use and no valid POSTGRESQL_HOST_PORT_RANGE is available."
                 exit 1
             fi
             break
