@@ -20,6 +20,7 @@ PostgreSQL with the recovered data.
 | Docker Compose | v2 (the `docker compose` plugin, not `docker-compose`) |
 | `bash` | 3.2 or later (macOS system bash is supported) |
 | `jq` | 1.6 or later — used to parse pgBackRest JSON output |
+| `nc` | netcat — used to check port availability |
 
 Install `jq` on macOS:
 ```bash
@@ -67,8 +68,11 @@ POSTGRES_VERSION=17
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=secret
 
-# Host port exposed by the PostgreSQL container
+# Host port exposed by the PostgreSQL container.
+# If this port is busy the script automatically tries the first free port
+# in POSTGRESQL_HOST_PORT_RANGE.
 POSTGRESQL_HOST_PORT=5432
+POSTGRESQL_HOST_PORT_RANGE=5433-5450
 ```
 
 ### 2. Configure pgBackRest
@@ -103,7 +107,7 @@ Each section name other than `[global]` is a stanza. You can define multiple sta
 in the same file (e.g. one per environment) and the restore script will let you choose
 which one to use.
 
-## Running a restore
+## Commands
 
 Make the script executable (first time only):
 
@@ -111,103 +115,107 @@ Make the script executable (first time only):
 chmod +x pgbackrest-restore.sh
 ```
 
-### Interactive mode
+Run `./pgbackrest-restore.sh help` or `./pgbackrest-restore.sh --help` for a list of
+available commands.
 
-Run without arguments to be guided through every parameter step by step:
+### list — list available backups
 
 ```bash
-./pgbackrest-restore.sh
+./pgbackrest-restore.sh list
 ```
+
+Displays all available backups for a stanza, sorted most-recent-first, in a paginated
+two-column layout. Exits after printing — no restore is performed.
+
+Pass `--stanza` to skip the interactive prompt:
+
+```bash
+./pgbackrest-restore.sh list --stanza my_stanza
+```
+
+### restore — restore a backup
+
+```bash
+./pgbackrest-restore.sh restore
+```
+
+Run without options to be guided through every parameter step by step.
 
 The script will ask:
 
 1. **PostgreSQL version** — major version to use (default from `.env`)
 2. **Stanza** — which stanza to restore from (read from `pgbackrest.conf`)
-3. **Backup set** — select from a paginated list sorted most-recent-first; press
-   ENTER to use the latest available backup
-4. **PITR target time** — optional point-in-time recovery timestamp
-   (`YYYY-MM-DD HH:MM:SS`); press ENTER to skip
+3. **PITR target time** — optional point-in-time recovery timestamp
+   (`YYYY-MM-DD HH:MM:SS`); press ENTER to skip and select a backup set instead
+4. **Backup set** — select from a paginated list sorted most-recent-first; press
+   ENTER to use the latest available backup (skipped if a PITR time was provided)
 5. **Databases to include** — space-separated list; press ENTER to restore all
-6. **Databases to exclude** — space-separated list; press ENTER to exclude none
-7. **Host port** — port exposed on the Docker host (default from `.env`)
+6. **Host port** — port exposed on the Docker host; the script checks availability
+   automatically and falls back to `POSTGRESQL_HOST_PORT_RANGE` if the default is busy
 
-### Non-interactive (CLI) mode
+#### Non-interactive (CLI) mode
 
-Pass one or more arguments to skip the corresponding interactive prompts. Any
+Pass one or more options to skip the corresponding interactive prompts. Any
 parameter not provided on the command line uses its default value silently —
 no prompt is shown.
 
-#### Options
-
-| Option | Short | Argument | Default (CLI mode) | Description |
-|--------|-------|----------|--------------------|-------------|
-| `--postgres-version` | `-V` | `VERSION` | — (required) | PostgreSQL major version |
-| `--stanza` | `-s` | `STANZA` | — (required) | pgBackRest stanza name |
-| `--backup-set` | `-b` | `LABEL\|latest` | — (required) | Backup label, or `latest` for the most recent |
-| `--time` | `-t` | `'YYYY-MM-DD HH:MM:SS'` | no PITR | Point-in-time recovery target |
-| `--databases` | `-d` | `'db1 db2 ...'` | all databases | Databases to restore (space-separated) |
-| `--exclude` | `-e` | `'db1 db2 ...'` | none | Databases to exclude (space-separated) |
-| `--port` | `-p` | `PORT` | value from `.env` or `5432` | PostgreSQL host port |
-| `--dry-run` | | | | Print the restore command without executing it |
-| `--debug` | | | | Print debug information during execution |
-| `--help` | `-h` | | | Show usage and exit |
+| Option | Short | Argument | Description |
+|--------|-------|----------|-------------|
+| `--postgres-version` | `-V` | `VERSION` | PostgreSQL major version |
+| `--stanza` | `-s` | `STANZA` | pgBackRest stanza name |
+| `--backup-set` | `-b` | `LABEL\|latest` | Backup label, or `latest` for the most recent |
+| `--time` | `-t` | `'YYYY-MM-DD HH:MM:SS'` | Point-in-time recovery target |
+| `--databases` | `-d` | `'db1 db2 ...'` | Databases to restore (space-separated) |
+| `--port` | `-p` | `PORT` | PostgreSQL host port (error if already in use) |
+| `--dry-run` | | | Print the restore command without executing it |
+| `--debug` | | | Print debug information during execution |
+| `--help` | `-h` | | Show usage and exit |
 
 #### Examples
 
-**Restore the latest backup of a production stanza (fully non-interactive):**
+**Restore the latest backup of a stanza (fully non-interactive):**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
+  -s my_stanza \
   -b latest
 ```
 
 **Restore a specific backup set:**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
+  -s my_stanza \
   -b 20260510-020005F
 ```
 
 **Point-in-time recovery to a specific timestamp:**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
-  -b latest \
+  -s my_stanza \
   -t '2026-05-12 14:30:00'
 ```
 
 **Restore only specific databases:**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
+  -s my_stanza \
   -b latest \
   -d 'myapp analytics'
 ```
 
-**Restore all databases except one:**
+**Restore on a specific port:**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
-  -b latest \
-  -e 'legacy_db'
-```
-
-**Restore on a non-default port:**
-
-```bash
-./pgbackrest-restore.sh \
-  -V 17 \
-  -s my_stanza_prod \
+  -s my_stanza \
   -b latest \
   -p 15432
 ```
@@ -215,13 +223,28 @@ no prompt is shown.
 **Preview the restore command without executing it:**
 
 ```bash
-./pgbackrest-restore.sh \
+./pgbackrest-restore.sh restore \
   -V 17 \
-  -s my_stanza_prod \
+  -s my_stanza \
   -b latest \
   -t '2026-05-12 14:30:00' \
   --dry-run
 ```
+
+## Port selection
+
+When no `--port` is given, the script selects the host port automatically:
+
+1. Checks if `POSTGRESQL_HOST_PORT` (from `.env`) is free
+2. If free, uses it
+3. If busy, scans `POSTGRESQL_HOST_PORT_RANGE` in order and picks the first free port
+4. If the entire range is busy, exits with an error
+
+If `--port` is given explicitly and that port is already in use, the script exits
+with an error immediately.
+
+In non-interactive CLI mode (any data option supplied), the default port is used
+as-is without availability checks.
 
 ## Restore behaviour
 
@@ -233,7 +256,7 @@ parameters provided:
 | Full restore, latest backup | `--type=default --target-timeline=latest` |
 | Full restore, specific backup | `--set=LABEL --type=default --target-timeline=latest` |
 | PITR | `--type=time --target='...' --target-action=promote` |
-| Selective restore (`--db-include` / `--db-exclude`) | `--type=immediate --target-action=promote` |
+| Selective restore (`--databases`) | `--type=immediate --target-action=promote` |
 
 ## Cleaning up
 
