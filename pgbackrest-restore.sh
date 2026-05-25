@@ -99,20 +99,40 @@ select_postgres_version() {
     echo "PostgreSQL version: $POSTGRES_VERSION"
 }
 
+# Returns 0 if the port is free, 1 if already in use
+is_port_free() {
+    ! nc -z -w1 127.0.0.1 "$1" 2>/dev/null
+}
+
 # Select the PostgreSQL host port
 select_postgresql_port() {
     local default_port=""
+    local port_range_start=""
+    local port_range_end=""
+
     if [ -f ".env" ]; then
         default_port=$(grep -E '^POSTGRESQL_HOST_PORT=' .env | cut -d= -f2)
+        local range
+        range=$(grep -E '^POSTGRESQL_HOST_PORT_RANGE=' .env | cut -d= -f2)
+        if [ -n "$range" ]; then
+            port_range_start="${range%-*}"
+            port_range_end="${range#*-}"
+        fi
     fi
     [ -z "$default_port" ] && default_port="5432"
 
+    # CLI mode with explicit --port: check availability, error if busy
     if $CLI_PORT; then
+        if ! is_port_free "$POSTGRESQL_HOST_PORT"; then
+            echo "Error: port $POSTGRESQL_HOST_PORT is already in use."
+            exit 1
+        fi
         export POSTGRESQL_HOST_PORT
         echo "PostgreSQL host port: $POSTGRESQL_HOST_PORT"
         return 0
     fi
 
+    # CLI mode without explicit port: use default as-is, no range search
     if $CLI_MODE; then
         POSTGRESQL_HOST_PORT="$default_port"
         export POSTGRESQL_HOST_PORT
@@ -120,13 +140,37 @@ select_postgresql_port() {
         return 0
     fi
 
+    # Interactive mode
     while true; do
-        read -p "Which port should PostgreSQL listen on? (ENTER for default: $default_port): " port_input
+        read -p "Which port should PostgreSQL listen on? (ENTER for auto, default $default_port): " port_input
 
         if [ -z "$port_input" ]; then
-            POSTGRESQL_HOST_PORT="$default_port"
+            # Try default port first
+            if is_port_free "$default_port"; then
+                POSTGRESQL_HOST_PORT="$default_port"
+            elif [ -n "$port_range_start" ] && [ -n "$port_range_end" ]; then
+                echo "Port $default_port is already in use, searching in range $port_range_start-$port_range_end ..."
+                POSTGRESQL_HOST_PORT=""
+                for ((p = port_range_start; p <= port_range_end; p++)); do
+                    if is_port_free "$p"; then
+                        POSTGRESQL_HOST_PORT="$p"
+                        break
+                    fi
+                done
+                if [ -z "$POSTGRESQL_HOST_PORT" ]; then
+                    echo "Error: no free port found in range $port_range_start-$port_range_end."
+                    exit 1
+                fi
+            else
+                echo "Error: port $default_port is already in use and POSTGRESQL_HOST_PORT_RANGE is not set in .env."
+                exit 1
+            fi
             break
         elif [[ "$port_input" =~ ^[0-9]+$ ]] && [ "$port_input" -ge 1 ] && [ "$port_input" -le 65535 ]; then
+            if ! is_port_free "$port_input"; then
+                echo "Error: port $port_input is already in use."
+                exit 1
+            fi
             POSTGRESQL_HOST_PORT="$port_input"
             break
         else
