@@ -35,6 +35,7 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  restore    Restore a pgBackRest backup"
+    echo "  help       Show this help"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help or command-specific help"
@@ -377,6 +378,8 @@ case "$1" in
                 usage; exit 1 ;;
         esac
         ;;
+    help)
+        usage; exit 0 ;;
     restore)
         shift
         [ $# -gt 0 ] && CLI_MODE=true
