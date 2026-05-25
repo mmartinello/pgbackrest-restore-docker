@@ -502,25 +502,24 @@ case "$1" in
     restore)
         COMMAND="restore"
         shift
-        [ $# -gt 0 ] && CLI_MODE=true
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 -V|--postgres-version)
-                    POSTGRES_VERSION="$2"; CLI_POSTGRES_VERSION=true; shift 2 ;;
+                    POSTGRES_VERSION="$2"; CLI_POSTGRES_VERSION=true; CLI_MODE=true; shift 2 ;;
                 -s|--stanza)
-                    stanza="$2"; CLI_STANZA=true; shift 2 ;;
+                    stanza="$2"; CLI_STANZA=true; CLI_MODE=true; shift 2 ;;
                 -b|--backup-set)
                     [ "$2" = "latest" ] && backup_set="" || backup_set="$2"
-                    CLI_BACKUP_SET=true; shift 2 ;;
+                    CLI_BACKUP_SET=true; CLI_MODE=true; shift 2 ;;
                 -t|--time)
-                    time_string="$2"; CLI_TIME=true; shift 2 ;;
+                    time_string="$2"; CLI_TIME=true; CLI_MODE=true; shift 2 ;;
                 -d|--databases)
-                    databases_string="$2"; CLI_DATABASES=true; shift 2 ;;
+                    databases_string="$2"; CLI_DATABASES=true; CLI_MODE=true; shift 2 ;;
                 -e|--exclude)
-                    databases_excluded_string="$2"; CLI_EXCLUDE_DATABASES=true; shift 2 ;;
+                    databases_excluded_string="$2"; CLI_EXCLUDE_DATABASES=true; CLI_MODE=true; shift 2 ;;
                 -p|--port)
                     if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
-                        POSTGRESQL_HOST_PORT="$2"; CLI_PORT=true
+                        POSTGRESQL_HOST_PORT="$2"; CLI_PORT=true; CLI_MODE=true
                     else
                         echo "Error: invalid port '$2'. Must be between 1 and 65535."
                         exit 1
