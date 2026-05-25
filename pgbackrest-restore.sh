@@ -172,9 +172,23 @@ select_time() {
         return 0
     fi
 
-    msg="Which time do you want to restore"
-    msg+=" (YYYY-MM-DD HH:MM:SS, press ENTER for last full backup)?"
+    msg="Which time do you want to restore (YYYY-MM-DD HH:MM:SS, press ENTER"
+    msg+=" to select a backup and restore at the latest abailable WAL)?"
     read -p "$msg " time_string
+
+    if [ -n "$time_string" ]; then
+        check_date "$time_string"
+        case $? in
+            1)
+                echo "Wrong PITR date '$time_string', exiting now!"
+                exit 1
+                ;;
+            2)
+                echo "Wrong PITR date format '$time_string', exiting now!"
+                exit 1
+                ;;
+        esac
+    fi
 }
 
 # Check if a given date is correct and has the correct format
@@ -186,13 +200,13 @@ select_time() {
 check_date() {
     date_string=$1
 
-    echo "Checking date string: $date_string"
+    $CLI_DEBUG && echo "Checking date string: $date_string"
 
     # Check if the given string has the valid format
     if [[ "$date_string" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}\ [0-9]{2}:[0-9]{2}:[0-9]{2}$ ]]; then
 
-      # Check if the given string is a valid date
-      if date -d "$date_stringut" >/dev/null 2>&1; then
+      # Check if the given string is a valid date (GNU date on Linux, BSD date on macOS)
+      if date -d "$date_string" >/dev/null 2>&1 || date -j -f "%Y-%m-%d %H:%M:%S" "$date_string" >/dev/null 2>&1; then
         return 0
       else
         return 1
@@ -564,15 +578,17 @@ echo
 select_stanza "$CONFIG_FILE_NAME"
 echo
 
-# Select the backup set to restore
-backup_list_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
-backups_json=$(eval "$backup_list_cmd")
-choose_backup "$backups_json"
-echo
-
 # Select the time
 select_time
 echo
+
+# Select the backup set to restore (skipped if a PITR time is set)
+if [ -z "$time_string" ]; then
+    backup_list_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
+    backups_json=$(eval "$backup_list_cmd")
+    choose_backup "$backups_json"
+    echo
+fi
 
 # Select databases to include
 select_databases
