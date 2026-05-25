@@ -35,12 +35,23 @@ usage() {
     echo ""
     echo "Commands:"
     echo "  restore    Restore a pgBackRest backup"
+    echo "  list       List available backups"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help or command-specific help"
     echo ""
     echo "Run '$0 COMMAND --help' for more information on a command."
+}
+
+usage_list() {
+    echo "Usage: $0 list [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -s, --stanza STANZA    pgBackRest stanza name"
+    echo "  -h, --help             Show this help"
+    echo ""
+    echo "If no options are provided, the stanza is asked interactively."
 }
 
 usage_restore() {
@@ -353,6 +364,82 @@ choose_backup() {
     done
 }
 
+# Display all backups without interactive selection
+list_backups() {
+    local backups_json=$1
+    local page_size=20  # items per page (10 rows x 2 columns)
+
+    # Build arrays of labels and types (most recent first)
+    local labels=()
+    local types=()
+    while read -r label type; do
+        labels+=("$label")
+        types+=("$type")
+    done < <(echo "$backups_json" | $jq_cmd_path -r '.[] | .backup | reverse | .[] | "\(.label) \(.type | ascii_upcase)"')
+
+    local total=${#labels[@]}
+    if [ "$total" -eq 0 ]; then
+        echo "No backups available."
+        return 0
+    fi
+
+    # Compute display widths dynamically
+    local num_width=${#total}
+    local label_width=0
+    local type_width=0
+    local i
+    for i in "${!labels[@]}"; do
+        [ ${#labels[$i]} -gt $label_width ] && label_width=${#labels[$i]}
+        local tw="(${types[$i]})"
+        [ ${#tw} -gt $type_width ] && type_width=${#tw}
+    done
+
+    local total_pages=$(( (total + page_size - 1) / page_size ))
+    local current_page=0
+
+    while [ $current_page -lt $total_pages ]; do
+        local start=$((current_page * page_size))
+        local end=$((start + page_size - 1))
+        [ $end -ge $total ] && end=$((total - 1))
+
+        echo "Available backups (from most recent to oldest):"
+        echo
+
+        # Display entries in two columns, top-to-bottom order
+        local count=$((end - start + 1))
+        local rows=$(( (count + 1) / 2 ))
+        local r=0
+        while [ $r -lt $rows ]; do
+            local left_idx=$((start + r))
+            local right_idx=$((start + rows + r))
+            local left_num=$((left_idx + 1))
+
+            if [ $right_idx -le $end ]; then
+                local right_num=$((right_idx + 1))
+                printf "  %*d. %-*s %-*s  |  %*d. %-*s %s\n" \
+                    $num_width $left_num \
+                    $label_width "${labels[$left_idx]}" \
+                    $type_width "(${types[$left_idx]})" \
+                    $num_width $right_num \
+                    $label_width "${labels[$right_idx]}" \
+                    "(${types[$right_idx]})"
+            else
+                printf "  %*d. %-*s %s\n" \
+                    $num_width $left_num \
+                    $label_width "${labels[$left_idx]}" \
+                    "(${types[$left_idx]})"
+            fi
+            r=$((r + 1))
+        done
+
+        echo
+        echo "  Page $((current_page + 1)) of $total_pages — entries $((start + 1))-$((end + 1)) of $total"
+        echo
+
+        current_page=$((current_page + 1))
+    done
+}
+
 # Parse command-line arguments
 
 # No arguments: command is required
@@ -370,6 +457,8 @@ case "$1" in
         case "$1" in
             restore)
                 usage_restore; exit 0 ;;
+            list)
+                usage_list; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -380,7 +469,24 @@ case "$1" in
         ;;
     help)
         usage; exit 0 ;;
+    list)
+        COMMAND="list"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -s|--stanza)
+                    stanza="$2"; CLI_STANZA=true; shift 2 ;;
+                -h|--help)
+                    usage_list; exit 0 ;;
+                *)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_list; exit 1 ;;
+            esac
+        done
+        ;;
     restore)
+        COMMAND="restore"
         shift
         [ $# -gt 0 ] && CLI_MODE=true
         while [[ $# -gt 0 ]]; do
@@ -432,6 +538,19 @@ case "$1" in
 esac
 
 # Print title
+if [[ "$COMMAND" == "list" ]]; then
+    echo "pgBackRest Backup List"
+    echo
+
+    select_stanza "$CONFIG_FILE_NAME"
+    echo
+
+    backup_list_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
+    backups_json=$(eval "$backup_list_cmd")
+    list_backups "$backups_json"
+    exit 0
+fi
+
 echo "pgBackRest Backup Restore"
 
 ##############################################################################
