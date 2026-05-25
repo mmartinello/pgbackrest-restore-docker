@@ -31,7 +31,19 @@ if [ -z "$jq_cmd_path" ]; then
 fi
 
 usage() {
-    echo "Usage: $0 [OPTIONS]"
+    echo "Usage: $0 COMMAND [OPTIONS]"
+    echo ""
+    echo "Commands:"
+    echo "  restore    Restore a pgBackRest backup"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help or command-specific help"
+    echo ""
+    echo "Run '$0 COMMAND --help' for more information on a command."
+}
+
+usage_restore() {
+    echo "Usage: $0 restore [OPTIONS]"
     echo ""
     echo "Options:"
     echo "  -V, --postgres-version VERSION        PostgreSQL version"
@@ -341,41 +353,80 @@ choose_backup() {
 }
 
 # Parse command-line arguments
-[ $# -gt 0 ] && CLI_MODE=true
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -V|--postgres-version)
-            POSTGRES_VERSION="$2"; CLI_POSTGRES_VERSION=true; shift 2 ;;
-        -s|--stanza)
-            stanza="$2"; CLI_STANZA=true; shift 2 ;;
-        -b|--backup-set)
-            [ "$2" = "latest" ] && backup_set="" || backup_set="$2"
-            CLI_BACKUP_SET=true; shift 2 ;;
-        -t|--time)
-            time_string="$2"; CLI_TIME=true; shift 2 ;;
-        -d|--databases)
-            databases_string="$2"; CLI_DATABASES=true; shift 2 ;;
-        -e|--exclude)
-            databases_excluded_string="$2"; CLI_EXCLUDE_DATABASES=true; shift 2 ;;
-        -p|--port)
-            if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
-                POSTGRESQL_HOST_PORT="$2"; CLI_PORT=true
-            else
-                echo "Error: invalid port '$2'. Must be between 1 and 65535."
-                exit 1
-            fi
-            shift 2 ;;
-        --dry-run)
-            CLI_DRY_RUN=true; shift ;;
-        --debug)
-            CLI_DEBUG=true; shift ;;
-        -h|--help)
-            usage; exit 0 ;;
-        *)
-            echo "Error: unknown option '$1'"
-            usage; exit 1 ;;
-    esac
-done
+
+# No arguments: command is required
+if [[ $# -eq 0 ]]; then
+    echo "Error: a command is required."
+    echo ""
+    usage
+    exit 1
+fi
+
+# Dispatch on the first argument
+case "$1" in
+    -h|--help)
+        shift
+        case "$1" in
+            restore)
+                usage_restore; exit 0 ;;
+            "")
+                usage; exit 0 ;;
+            *)
+                echo "Error: unknown command '$1'"
+                echo ""
+                usage; exit 1 ;;
+        esac
+        ;;
+    restore)
+        shift
+        [ $# -gt 0 ] && CLI_MODE=true
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -V|--postgres-version)
+                    POSTGRES_VERSION="$2"; CLI_POSTGRES_VERSION=true; shift 2 ;;
+                -s|--stanza)
+                    stanza="$2"; CLI_STANZA=true; shift 2 ;;
+                -b|--backup-set)
+                    [ "$2" = "latest" ] && backup_set="" || backup_set="$2"
+                    CLI_BACKUP_SET=true; shift 2 ;;
+                -t|--time)
+                    time_string="$2"; CLI_TIME=true; shift 2 ;;
+                -d|--databases)
+                    databases_string="$2"; CLI_DATABASES=true; shift 2 ;;
+                -e|--exclude)
+                    databases_excluded_string="$2"; CLI_EXCLUDE_DATABASES=true; shift 2 ;;
+                -p|--port)
+                    if [[ "$2" =~ ^[0-9]+$ ]] && [ "$2" -ge 1 ] && [ "$2" -le 65535 ]; then
+                        POSTGRESQL_HOST_PORT="$2"; CLI_PORT=true
+                    else
+                        echo "Error: invalid port '$2'. Must be between 1 and 65535."
+                        exit 1
+                    fi
+                    shift 2 ;;
+                --dry-run)
+                    CLI_DRY_RUN=true; shift ;;
+                --debug)
+                    CLI_DEBUG=true; shift ;;
+                -h|--help)
+                    usage_restore; exit 0 ;;
+                *)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_restore; exit 1 ;;
+            esac
+        done
+        ;;
+    -*)
+        echo "Error: options are not allowed without a command."
+        echo ""
+        usage; exit 1
+        ;;
+    *)
+        echo "Error: unknown command '$1'"
+        echo ""
+        usage; exit 1
+        ;;
+esac
 
 # Print title
 echo "pgBackRest Backup Restore"
