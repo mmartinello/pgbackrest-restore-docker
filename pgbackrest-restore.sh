@@ -41,6 +41,7 @@ usage() {
     echo "  restart    Restart a restore instance"
     echo "  logs       Show logs of a restore instance"
     echo "  ps         Show services of a restore instance"
+    echo "  clean      Delete a restore instance and its volumes"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
@@ -139,6 +140,22 @@ usage_ps() {
     echo ""
     echo "Arguments:"
     echo "  INSTANCE    Name of the instance (e.g. pgbackrest_restore_5432)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help"
+    echo ""
+    echo "Use '$0 show' to list active instances."
+}
+
+usage_clean() {
+    echo "Usage: $0 clean INSTANCE"
+    echo ""
+    echo "Stops and permanently deletes the given restore instance, including all"
+    echo "Docker volumes (PostgreSQL data, pgBackRest state, logs). This operation"
+    echo "is irreversible. A confirmation prompt is shown before proceeding."
+    echo ""
+    echo "Arguments:"
+    echo "  INSTANCE    Name of the instance to delete (e.g. pgbackrest_restore_5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -654,6 +671,8 @@ case "$1" in
                 usage_logs; exit 0 ;;
             ps)
                 usage_ps; exit 0 ;;
+            clean)
+                usage_clean; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -827,6 +846,37 @@ case "$1" in
         fi
         if [[ ! "$PS_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
             echo "Error: '$PS_INSTANCE' is not a valid instance name."
+            echo "Expected format: pgbackrest_restore_<port>"
+            exit 1
+        fi
+        ;;
+    clean)
+        COMMAND="clean"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_clean; exit 0 ;;
+                -*)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_clean; exit 1 ;;
+                *)
+                    if [ -n "$CLEAN_INSTANCE" ]; then
+                        echo "Error: too many arguments."
+                        echo ""
+                        usage_clean; exit 1
+                    fi
+                    CLEAN_INSTANCE="$1"; shift ;;
+            esac
+        done
+        if [ -z "$CLEAN_INSTANCE" ]; then
+            echo "Error: instance name is required."
+            echo ""
+            usage_clean; exit 1
+        fi
+        if [[ ! "$CLEAN_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+            echo "Error: '$CLEAN_INSTANCE' is not a valid instance name."
             echo "Expected format: pgbackrest_restore_<port>"
             exit 1
         fi
@@ -1006,6 +1056,40 @@ if [[ "$COMMAND" == "restart" ]]; then
         echo "Connection port: $RESTART_PORT"
     else
         echo "Error: failed to start instance '$RESTART_INSTANCE' (exit code $exit_status)."
+    fi
+    exit $exit_status
+fi
+
+if [[ "$COMMAND" == "clean" ]]; then
+    echo "pgBackRest Clean Instance"
+    echo
+
+    if ! docker volume inspect "${CLEAN_INSTANCE}_data" > /dev/null 2>&1; then
+        echo "Error: no data volume found for instance '$CLEAN_INSTANCE'."
+        echo "Run '$0 restore' first to create this instance."
+        exit 1
+    fi
+
+    echo "WARNING: this will permanently delete instance '$CLEAN_INSTANCE'"
+    echo "and all its Docker volumes, including the PostgreSQL data."
+    echo "This operation cannot be undone."
+    echo
+    read -p "Type the instance name to confirm: " confirm
+    if [ "$confirm" != "$CLEAN_INSTANCE" ]; then
+        echo "Aborted."
+        exit 1
+    fi
+
+    echo
+    echo "Deleting instance '$CLEAN_INSTANCE' ..."
+    $DOCKER_COMPOSE_PATH -p "$CLEAN_INSTANCE" down -v
+    exit_status=$?
+
+    echo
+    if [ $exit_status -eq 0 ]; then
+        echo "Instance '$CLEAN_INSTANCE' deleted successfully."
+    else
+        echo "Error: failed to delete instance '$CLEAN_INSTANCE' (exit code $exit_status)."
     fi
     exit $exit_status
 fi

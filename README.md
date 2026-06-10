@@ -235,6 +235,27 @@ Shows the status of all services for the specified instance via `docker compose 
 ./pgbackrest-restore.sh ps pgbackrest_restore_5432
 ```
 
+### clean — delete a restore instance and its volumes
+
+```bash
+./pgbackrest-restore.sh clean INSTANCE
+```
+
+Stops and permanently deletes the specified instance by running
+`docker compose down -v`, which removes all containers **and Docker volumes**
+(PostgreSQL data, pgBackRest state, logs). This operation is irreversible.
+
+Before proceeding, the command asks you to type the instance name as confirmation.
+
+```bash
+./pgbackrest-restore.sh clean pgbackrest_restore_5432
+# WARNING: this will permanently delete instance 'pgbackrest_restore_5432'
+# and all its Docker volumes, including the PostgreSQL data.
+# This operation cannot be undone.
+#
+# Type the instance name to confirm: pgbackrest_restore_5432
+```
+
 ### restore — restore a backup
 
 ```bash
