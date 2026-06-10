@@ -155,6 +155,24 @@ pgBackRest Restore Instances
   pgbackrest_restore_15432                  running(1)            15432
 ```
 
+### start — start a restore instance
+
+```bash
+./pgbackrest-restore.sh start INSTANCE
+```
+
+Starts the specified restore instance by running `docker compose up -d --force-recreate`
+for that project — exactly the same command used to bring up PostgreSQL at the end of a
+restore. The instance must have been previously created by the `restore` command; existing
+Docker volumes are reused so the restored data is preserved.
+
+`INSTANCE` is the project name as shown by `./pgbackrest-restore.sh show`
+(e.g. `pgbackrest_restore_5432`).
+
+```bash
+./pgbackrest-restore.sh start pgbackrest_restore_5432
+```
+
 ### stop — stop an active restore instance
 
 ```bash

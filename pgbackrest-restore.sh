@@ -36,6 +36,7 @@ usage() {
     echo "  restore    Restore a pgBackRest backup"
     echo "  list       List available backups"
     echo "  show       Show active restore instances"
+    echo "  start      Start a restore instance"
     echo "  stop       Stop an active restore instance"
     echo "  help       Show this help"
     echo ""
@@ -79,6 +80,22 @@ usage_show() {
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
+}
+
+usage_start() {
+    echo "Usage: $0 start INSTANCE"
+    echo ""
+    echo "Starts the given restore instance (runs 'docker compose up -d --force-recreate')."
+    echo "The instance must have been previously created by the restore command."
+    echo "Existing Docker volumes are reused, so the restored data is preserved."
+    echo ""
+    echo "Arguments:"
+    echo "  INSTANCE    Name of the instance to start (e.g. pgbackrest_restore_5432)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help"
+    echo ""
+    echo "Use '$0 show' to list active instances."
 }
 
 usage_stop() {
@@ -579,6 +596,8 @@ case "$1" in
                 usage_list; exit 0 ;;
             show)
                 usage_show; exit 0 ;;
+            start)
+                usage_start; exit 0 ;;
             stop)
                 usage_stop; exit 0 ;;
             "")
@@ -604,6 +623,37 @@ case "$1" in
                     usage_show; exit 1 ;;
             esac
         done
+        ;;
+    start)
+        COMMAND="start"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_start; exit 0 ;;
+                -*)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_start; exit 1 ;;
+                *)
+                    if [ -n "$START_INSTANCE" ]; then
+                        echo "Error: too many arguments."
+                        echo ""
+                        usage_start; exit 1
+                    fi
+                    START_INSTANCE="$1"; shift ;;
+            esac
+        done
+        if [ -z "$START_INSTANCE" ]; then
+            echo "Error: instance name is required."
+            echo ""
+            usage_start; exit 1
+        fi
+        if [[ ! "$START_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+            echo "Error: '$START_INSTANCE' is not a valid instance name."
+            echo "Expected format: pgbackrest_restore_<port>"
+            exit 1
+        fi
         ;;
     stop)
         COMMAND="stop"
@@ -715,6 +765,33 @@ if [[ "$COMMAND" == "show" ]]; then
     echo
     show_instances
     exit 0
+fi
+
+if [[ "$COMMAND" == "start" ]]; then
+    echo "pgBackRest Start Instance"
+    echo
+
+    START_PORT="${START_INSTANCE#pgbackrest_restore_}"
+
+    if ! docker volume inspect "${START_INSTANCE}_data" > /dev/null 2>&1; then
+        echo "Error: no data volume found for instance '$START_INSTANCE'."
+        echo "Run '$0 restore' first to create this instance."
+        exit 1
+    fi
+
+    echo "Starting instance '$START_INSTANCE' ..."
+    POSTGRESQL_HOST_PORT="$START_PORT" $DOCKER_COMPOSE_PATH -p "$START_INSTANCE" up -d --force-recreate
+    exit_status=$?
+
+    echo
+    echo "========================================================================"
+    if [ $exit_status -eq 0 ]; then
+        echo "PostgreSQL is up and running!"
+        echo "Connection port: $START_PORT"
+    else
+        echo "Error: failed to start instance '$START_INSTANCE' (exit code $exit_status)."
+    fi
+    exit $exit_status
 fi
 
 if [[ "$COMMAND" == "stop" ]]; then
