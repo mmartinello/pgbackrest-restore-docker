@@ -18,7 +18,7 @@ services:
       "
 
   postgresql:
-    image: mmartinello/postgresql-pgbackrest:${POSTGRES_VERSION:-16}
+    image: mmartinello/postgresql-pgbackrest:${POSTGRES_VERSION:-17}
     env_file: .env
     volumes:
       - data:${PGDATA:-/var/lib/postgresql/data}
@@ -32,7 +32,7 @@ services:
     depends_on:
       change-vol-ownership:
         condition: service_completed_successfully
-    command: /usr/lib/postgresql/${POSTGRES_VERSION:-16}/bin/postgres
+    command: /usr/lib/postgresql/${POSTGRES_VERSION:-17}/bin/postgres
 
 volumes:
   data:
