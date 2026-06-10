@@ -574,8 +574,8 @@ show_instances() {
 
     echo "Active restore instances:"
     echo
-    printf "  %-40s  %-20s  %s\n" "PROJECT" "STATUS" "PORT"
-    printf "  %-40s  %-20s  %s\n" "-------" "------" "----"
+    printf "  %-40s  %-20s  %s\n" "NAME" "STATUS" "PORT"
+    printf "  %-40s  %-20s  %s\n" "----" "------" "----"
 
     while IFS= read -r entry; do
         local name status port

@@ -149,8 +149,8 @@ Example output:
 ```
 pgBackRest Restore Instances
 
-  PROJECT                                   STATUS                PORT
-  -------                                   ------                ----
+  NAME                                      STATUS                PORT
+  ----                                      ------                ----
   pgbackrest_restore_5432                   running(1)            5432
   pgbackrest_restore_15432                  running(1)            15432
 ```
