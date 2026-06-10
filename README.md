@@ -205,6 +205,24 @@ running or already stopped. Docker volumes are preserved throughout.
 ./pgbackrest-restore.sh restart pgbackrest_restore_5432
 ```
 
+### logs — show logs of a restore instance
+
+```bash
+./pgbackrest-restore.sh logs INSTANCE [OPTIONS]
+```
+
+Shows the logs for all services of the specified instance via `docker compose logs`.
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--follow` | `-f` | Follow log output (stream in real time) |
+| `--help` | `-h` | Show usage and exit |
+
+```bash
+./pgbackrest-restore.sh logs pgbackrest_restore_5432
+./pgbackrest-restore.sh logs pgbackrest_restore_5432 --follow
+```
+
 ### restore — restore a backup
 
 ```bash
