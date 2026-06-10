@@ -140,19 +140,26 @@ Pass `--stanza` to skip the interactive prompt:
 ```
 
 Lists all active restore instances started from the `docker-compose.yml` in the current
-directory. For each instance the project name, Docker Compose status, and the PostgreSQL
-host port are shown. Useful when multiple restores are running in parallel (one per port)
+directory. For each instance the project name, Docker Compose status, port, and restore
+details are shown. Useful when multiple restores are running in parallel (one per port)
 and you need a quick overview.
+
+Restore details (stanza, backup set or PITR time, databases, restore timestamp) are read
+from the `.instances/<name>.json` file saved automatically by the `restore` command. If
+the file is missing the line shows `(no restore details available)`.
 
 Example output:
 
 ```
 pgBackRest Restore Instances
 
-  NAME                                      STATUS                PORT
-  ----                                      ------                ----
   pgbackrest_restore_5432                   running(1)            5432
+    pg: 17    stanza: my_stanza             backup: 20260510-020005F
+    databases: all                          restored: 2026-06-10 15:30:00
+
   pgbackrest_restore_15432                  running(1)            15432
+    pg: 17    stanza: my_stanza             pitr: 2026-05-12 14:30:00
+    databases: myapp, analytics             restored: 2026-06-10 16:00:00
 ```
 
 ### start — start a restore instance

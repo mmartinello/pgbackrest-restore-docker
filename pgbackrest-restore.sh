@@ -10,6 +10,7 @@ CONFIG_FILE_NAME="pgbackrest.conf"
 DOCKER_COMPOSE_PATH="docker compose"
 PGBACKREST_DOCKER_CONTAINER="postgresql"
 POSTGRESQL_DATA_DIR=/var/lib/postgresql/data
+INSTANCES_DIR=".instances"
 
 # CLI override flags
 CLI_POSTGRES_VERSION=false
@@ -624,8 +625,6 @@ show_instances() {
 
     echo "Active restore instances:"
     echo
-    printf "  %-40s  %-20s  %s\n" "NAME" "STATUS" "PORT"
-    printf "  %-40s  %-20s  %s\n" "----" "------" "----"
 
     while IFS= read -r entry; do
         local name status port
@@ -636,10 +635,34 @@ show_instances() {
         else
             port="-"
         fi
-        printf "  %-40s  %-20s  %s\n" "$name" "$status" "$port"
-    done < <(echo "$instances_json" | $jq_cmd_path -c '.[]')
 
-    echo
+        printf "  %-40s  %-20s  %s\n" "$name" "$status" "$port"
+
+        local meta_file="${INSTANCES_DIR}/${name}.json"
+        if [ -f "$meta_file" ]; then
+            local pg_ver stanza backup_set time_val databases restore_date target
+            pg_ver=$($jq_cmd_path -r '.postgres_version' "$meta_file")
+            stanza=$($jq_cmd_path -r '.stanza' "$meta_file")
+            backup_set=$($jq_cmd_path -r '.backup_set // empty' "$meta_file")
+            time_val=$($jq_cmd_path -r '.time // empty' "$meta_file")
+            databases=$($jq_cmd_path -r '.databases | if length == 0 then "all" else join(", ") end' "$meta_file")
+            restore_date=$($jq_cmd_path -r '.restore_date' "$meta_file")
+
+            if [ -n "$backup_set" ]; then
+                target="backup: $backup_set"
+            elif [ -n "$time_val" ]; then
+                target="pitr: $time_val"
+            else
+                target="backup: latest"
+            fi
+
+            printf "    pg: %-4s  stanza: %-20s  %s\n" "$pg_ver" "$stanza" "$target"
+            printf "    databases: %-30s  restored: %s\n" "$databases" "$restore_date"
+        else
+            printf "    (no restore details available)\n"
+        fi
+        echo
+    done < <(echo "$instances_json" | $jq_cmd_path -c '.[]')
 }
 
 # Parse command-line arguments
@@ -1094,6 +1117,7 @@ if [[ "$COMMAND" == "clean" ]]; then
 
     echo
     if [ $exit_status -eq 0 ]; then
+        rm -f "${INSTANCES_DIR}/${CLEAN_INSTANCE}.json"
         echo "Instance '$CLEAN_INSTANCE' deleted successfully."
     else
         echo "Error: failed to delete instance '$CLEAN_INSTANCE' (exit code $exit_status)."
@@ -1280,6 +1304,33 @@ if [[ "$exit_status" -ne 0 ]]; then
   echo "Please check the above output to find out where which error(s) occurred"
   echo "Fix them and try again."
 else
+  # Save restore metadata
+  mkdir -p "$INSTANCES_DIR"
+  if [ -n "$databases_string" ]; then
+      databases_json=$(echo "$databases_string" | tr ' ' '\n' | $jq_cmd_path -R . | $jq_cmd_path -s .)
+  else
+      databases_json='[]'
+  fi
+  $jq_cmd_path -n \
+      --arg instance "$COMPOSE_PROJECT" \
+      --arg port "$POSTGRESQL_HOST_PORT" \
+      --arg postgres_version "$POSTGRES_VERSION" \
+      --arg stanza "$stanza" \
+      --arg backup_set "$backup_set" \
+      --arg time "$time_string" \
+      --argjson databases "$databases_json" \
+      --arg restore_date "$(date '+%Y-%m-%d %H:%M:%S')" \
+      '{
+        instance: $instance,
+        port: $port,
+        postgres_version: $postgres_version,
+        stanza: $stanza,
+        backup_set: (if $backup_set == "" then null else $backup_set end),
+        time: (if $time == "" then null else $time end),
+        databases: $databases,
+        restore_date: $restore_date
+      }' > "${INSTANCES_DIR}/${COMPOSE_PROJECT}.json"
+
   # Start PostgreSQL Docker container
   echo "Starting PostgreSQL Docker container ..."
 

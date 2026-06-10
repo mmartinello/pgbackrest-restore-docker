@@ -17,3 +17,6 @@ pgbackrest.conf
 TODO.txt
 .ansible
 .claude
+
+# pgBackRest instances data
+.instances/
