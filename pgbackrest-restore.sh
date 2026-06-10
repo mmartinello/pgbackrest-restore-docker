@@ -740,7 +740,7 @@ fi
 echo
 echo "Starting restore ..."
 
-$restore_cmd
+eval "$restore_cmd"
 exit_status=$?
 
 echo
