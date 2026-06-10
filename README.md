@@ -155,6 +155,24 @@ pgBackRest Restore Instances
   pgbackrest_restore_15432                  running(1)            15432
 ```
 
+### stop — stop an active restore instance
+
+```bash
+./pgbackrest-restore.sh stop INSTANCE
+```
+
+Stops the specified restore instance by running `docker compose down` for that project.
+Only instances started from the `docker-compose.yml` in the current directory can be
+stopped with this command. **Docker volumes are preserved** — only containers are stopped
+and removed. To also delete the volumes, run `docker compose down -v` manually afterwards.
+
+`INSTANCE` is the project name as shown by `./pgbackrest-restore.sh show`
+(e.g. `pgbackrest_restore_5432`).
+
+```bash
+./pgbackrest-restore.sh stop pgbackrest_restore_5432
+```
+
 ### restore — restore a backup
 
 ```bash

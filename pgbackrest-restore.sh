@@ -36,6 +36,7 @@ usage() {
     echo "  restore    Restore a pgBackRest backup"
     echo "  list       List available backups"
     echo "  show       Show active restore instances"
+    echo "  stop       Stop an active restore instance"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
@@ -78,6 +79,21 @@ usage_show() {
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
+}
+
+usage_stop() {
+    echo "Usage: $0 stop INSTANCE"
+    echo ""
+    echo "Stops the given restore instance (runs 'docker compose down' for that project)."
+    echo "Docker volumes are preserved; only containers are stopped and removed."
+    echo ""
+    echo "Arguments:"
+    echo "  INSTANCE    Name of the instance to stop (e.g. pgbackrest_restore_5432)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help"
+    echo ""
+    echo "Use '$0 show' to list active instances."
 }
 
 # Select the PostgreSQL version to use
@@ -563,6 +579,8 @@ case "$1" in
                 usage_list; exit 0 ;;
             show)
                 usage_show; exit 0 ;;
+            stop)
+                usage_stop; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -586,6 +604,32 @@ case "$1" in
                     usage_show; exit 1 ;;
             esac
         done
+        ;;
+    stop)
+        COMMAND="stop"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_stop; exit 0 ;;
+                -*)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_stop; exit 1 ;;
+                *)
+                    if [ -n "$STOP_INSTANCE" ]; then
+                        echo "Error: too many arguments."
+                        echo ""
+                        usage_stop; exit 1
+                    fi
+                    STOP_INSTANCE="$1"; shift ;;
+            esac
+        done
+        if [ -z "$STOP_INSTANCE" ]; then
+            echo "Error: instance name is required."
+            echo ""
+            usage_stop; exit 1
+        fi
         ;;
     list)
         COMMAND="list"
@@ -671,6 +715,35 @@ if [[ "$COMMAND" == "show" ]]; then
     echo
     show_instances
     exit 0
+fi
+
+if [[ "$COMMAND" == "stop" ]]; then
+    echo "pgBackRest Stop Instance"
+    echo
+
+    config_file="$(pwd)/docker-compose.yml"
+    instance_check=$(docker compose ls --format json 2>/dev/null | \
+        $jq_cmd_path --arg cf "$config_file" --arg name "$STOP_INSTANCE" \
+        '[.[] | select(.Name == $name and (.ConfigFiles | split(",") | map(ltrimstr(" ") | rtrimstr(" ")) | any(. == $cf)))] | length')
+
+    if [ "$instance_check" -eq 0 ]; then
+        echo "Error: instance '$STOP_INSTANCE' not found among active instances of this project."
+        echo "Use '$0 show' to list active instances."
+        exit 1
+    fi
+
+    echo "Stopping instance '$STOP_INSTANCE' ..."
+    $DOCKER_COMPOSE_PATH -p "$STOP_INSTANCE" down
+    exit_status=$?
+
+    echo
+    if [ $exit_status -eq 0 ]; then
+        echo "Instance '$STOP_INSTANCE' stopped successfully."
+        echo "Note: Docker volumes have been preserved. Run 'docker compose down -v' to remove them."
+    else
+        echo "Error: failed to stop instance '$STOP_INSTANCE' (exit code $exit_status)."
+    fi
+    exit $exit_status
 fi
 
 echo "pgBackRest Backup Restore"
