@@ -3,6 +3,18 @@
 # 23/10/2024 Mattia Martinello
 # This script restore a backup from our pgBackRest repository
 
+# Resolve the real directory of this script, following symlinks, so that the
+# script works correctly when invoked via an alias or a symlink in $PATH.
+_s="$0"
+while [ -L "$_s" ]; do
+    _d="$(cd -P "$(dirname "$_s")" && pwd)"
+    _s="$(readlink "$_s")"
+    [[ "$_s" != /* ]] && _s="$_d/$_s"
+done
+SCRIPT_DIR="$(cd -P "$(dirname "$_s")" && pwd)"
+unset _s _d
+cd "$SCRIPT_DIR" || { echo "Error: cannot change to script directory '$SCRIPT_DIR'."; exit 1; }
+
 # Variables
 LOG_LEVEL="info"
 CONFIG_FILE_DIR="/etc/pgbackrest"
