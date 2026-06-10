@@ -12,6 +12,13 @@ PGBACKREST_DOCKER_CONTAINER="postgresql"
 POSTGRESQL_DATA_DIR=/var/lib/postgresql/data
 INSTANCES_DIR=".instances"
 
+# Instance name prefix — configurable via INSTANCE_PREFIX in .env
+INSTANCE_PREFIX="pgbackrest_restore_"
+if [ -f ".env" ]; then
+    _env_prefix=$(grep -E '^INSTANCE_PREFIX=' .env | cut -d= -f2)
+    [ -n "$_env_prefix" ] && INSTANCE_PREFIX="$_env_prefix"
+fi
+
 # CLI override flags
 CLI_POSTGRES_VERSION=false
 CLI_STANZA=false
@@ -95,7 +102,7 @@ usage_start() {
     echo "Existing Docker volumes are reused, so the restored data is preserved."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE    Name of the instance to start (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE    Name of the instance to start (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -111,7 +118,7 @@ usage_restart() {
     echo "is currently running or stopped. Docker volumes are preserved."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE    Name of the instance to restart (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE    Name of the instance to restart (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -125,7 +132,7 @@ usage_logs() {
     echo "Shows logs for the given restore instance."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE      Name of the instance (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE      Name of the instance (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -f, --follow  Follow log output"
@@ -140,7 +147,7 @@ usage_ps() {
     echo "Shows the services and their status for the given restore instance."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE    Name of the instance (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE    Name of the instance (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -157,7 +164,7 @@ usage_clean() {
     echo "--yes is passed."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE      Name of the instance to delete (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE      Name of the instance to delete (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -y, --yes     Skip confirmation prompt and proceed automatically"
@@ -173,7 +180,7 @@ usage_stop() {
     echo "Docker volumes are preserved; only containers are stopped and removed."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE    Name of the instance to stop (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE    Name of the instance to stop (e.g. ${INSTANCE_PREFIX}5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -630,7 +637,7 @@ show_instances() {
         local name status port
         name=$(echo "$entry" | $jq_cmd_path -r '.Name')
         status=$(echo "$entry" | $jq_cmd_path -r '.Status')
-        if [[ "$name" =~ ^pgbackrest_restore_([0-9]+)$ ]]; then
+        if [[ "$name" =~ ^${INSTANCE_PREFIX}([0-9]+)$ ]]; then
             port="${BASH_REMATCH[1]}"
         else
             port="-"
@@ -747,9 +754,9 @@ case "$1" in
             echo ""
             usage_start; exit 1
         fi
-        if [[ ! "$START_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+        if [[ ! "$START_INSTANCE" =~ ^${INSTANCE_PREFIX}[0-9]+$ ]]; then
             echo "Error: '$START_INSTANCE' is not a valid instance name."
-            echo "Expected format: pgbackrest_restore_<port>"
+            echo "Expected format: ${INSTANCE_PREFIX}<port>"
             exit 1
         fi
         ;;
@@ -804,9 +811,9 @@ case "$1" in
             echo ""
             usage_restart; exit 1
         fi
-        if [[ ! "$RESTART_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+        if [[ ! "$RESTART_INSTANCE" =~ ^${INSTANCE_PREFIX}[0-9]+$ ]]; then
             echo "Error: '$RESTART_INSTANCE' is not a valid instance name."
-            echo "Expected format: pgbackrest_restore_<port>"
+            echo "Expected format: ${INSTANCE_PREFIX}<port>"
             exit 1
         fi
         ;;
@@ -838,9 +845,9 @@ case "$1" in
             echo ""
             usage_logs; exit 1
         fi
-        if [[ ! "$LOGS_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+        if [[ ! "$LOGS_INSTANCE" =~ ^${INSTANCE_PREFIX}[0-9]+$ ]]; then
             echo "Error: '$LOGS_INSTANCE' is not a valid instance name."
-            echo "Expected format: pgbackrest_restore_<port>"
+            echo "Expected format: ${INSTANCE_PREFIX}<port>"
             exit 1
         fi
         ;;
@@ -869,9 +876,9 @@ case "$1" in
             echo ""
             usage_ps; exit 1
         fi
-        if [[ ! "$PS_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+        if [[ ! "$PS_INSTANCE" =~ ^${INSTANCE_PREFIX}[0-9]+$ ]]; then
             echo "Error: '$PS_INSTANCE' is not a valid instance name."
-            echo "Expected format: pgbackrest_restore_<port>"
+            echo "Expected format: ${INSTANCE_PREFIX}<port>"
             exit 1
         fi
         ;;
@@ -903,9 +910,9 @@ case "$1" in
             echo ""
             usage_clean; exit 1
         fi
-        if [[ ! "$CLEAN_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+        if [[ ! "$CLEAN_INSTANCE" =~ ^${INSTANCE_PREFIX}[0-9]+$ ]]; then
             echo "Error: '$CLEAN_INSTANCE' is not a valid instance name."
-            echo "Expected format: pgbackrest_restore_<port>"
+            echo "Expected format: ${INSTANCE_PREFIX}<port>"
             exit 1
         fi
         ;;
@@ -999,7 +1006,7 @@ if [[ "$COMMAND" == "start" ]]; then
     echo "pgBackRest Start Instance"
     echo
 
-    START_PORT="${START_INSTANCE#pgbackrest_restore_}"
+    START_PORT="${START_INSTANCE#${INSTANCE_PREFIX}}"
 
     if ! docker volume inspect "${START_INSTANCE}_data" > /dev/null 2>&1; then
         echo "Error: no data volume found for instance '$START_INSTANCE'."
@@ -1055,7 +1062,7 @@ if [[ "$COMMAND" == "restart" ]]; then
     echo "pgBackRest Restart Instance"
     echo
 
-    RESTART_PORT="${RESTART_INSTANCE#pgbackrest_restore_}"
+    RESTART_PORT="${RESTART_INSTANCE#${INSTANCE_PREFIX}}"
 
     if ! docker volume inspect "${RESTART_INSTANCE}_data" > /dev/null 2>&1; then
         echo "Error: no data volume found for instance '$RESTART_INSTANCE'."
@@ -1160,7 +1167,7 @@ echo "pgBackRest Backup Restore"
 select_postgresql_port
 echo
 
-COMPOSE_PROJECT="pgbackrest_restore_${POSTGRESQL_HOST_PORT}"
+COMPOSE_PROJECT="${INSTANCE_PREFIX}${POSTGRESQL_HOST_PORT}"
 
 # Select the PostgreSQL version
 select_postgres_version

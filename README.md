@@ -73,6 +73,11 @@ POSTGRES_PASSWORD=secret
 # in POSTGRESQL_HOST_PORT_RANGE.
 POSTGRESQL_HOST_PORT=5432
 POSTGRESQL_HOST_PORT_RANGE=5433-5450
+
+# Optional: prefix used to name Docker Compose projects for restore instances.
+# Each instance is named <INSTANCE_PREFIX><port> (e.g. pgbackrest_restore_5432).
+# Defaults to "pgbackrest_restore_" if not set.
+# INSTANCE_PREFIX=pgbackrest_restore_
 ```
 
 ### 2. Configure pgBackRest
