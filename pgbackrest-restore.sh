@@ -711,6 +711,10 @@ if $CLI_DRY_RUN; then
 fi
 
 # Ensure that PostgreSQL datadir is empty
+if [ -f ".env" ]; then
+    pgdata_env=$(grep -E '^PGDATA=' .env | cut -d= -f2)
+    [ -n "$pgdata_env" ] && POSTGRESQL_DATA_DIR="$pgdata_env"
+fi
 echo
 echo "Checking if PostgreSQL datadir contains data ..."
 $DOCKER_COMPOSE_PATH run --rm -T "$PGBACKREST_DOCKER_CONTAINER" sh -c "[ -z \"\$(ls -A $POSTGRESQL_DATA_DIR)\" ]" 2>/dev/null
