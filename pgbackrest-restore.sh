@@ -148,16 +148,18 @@ usage_ps() {
 }
 
 usage_clean() {
-    echo "Usage: $0 clean INSTANCE"
+    echo "Usage: $0 clean INSTANCE [OPTIONS]"
     echo ""
     echo "Stops and permanently deletes the given restore instance, including all"
     echo "Docker volumes (PostgreSQL data, pgBackRest state, logs). This operation"
-    echo "is irreversible. A confirmation prompt is shown before proceeding."
+    echo "is irreversible. A confirmation prompt is shown before proceeding unless"
+    echo "--yes is passed."
     echo ""
     echo "Arguments:"
-    echo "  INSTANCE    Name of the instance to delete (e.g. pgbackrest_restore_5432)"
+    echo "  INSTANCE      Name of the instance to delete (e.g. pgbackrest_restore_5432)"
     echo ""
     echo "Options:"
+    echo "  -y, --yes     Skip confirmation prompt and proceed automatically"
     echo "  -h, --help    Show this help"
     echo ""
     echo "Use '$0 show' to list active instances."
@@ -852,11 +854,14 @@ case "$1" in
         ;;
     clean)
         COMMAND="clean"
+        CLEAN_YES=false
         shift
         while [[ $# -gt 0 ]]; do
             case "$1" in
                 -h|--help)
                     usage_clean; exit 0 ;;
+                -y|--yes)
+                    CLEAN_YES=true; shift ;;
                 -*)
                     echo "Error: unknown option '$1'"
                     echo ""
@@ -1074,10 +1079,12 @@ if [[ "$COMMAND" == "clean" ]]; then
     echo "and all its Docker volumes, including the PostgreSQL data."
     echo "This operation cannot be undone."
     echo
-    read -p "Type the instance name to confirm: " confirm
-    if [ "$confirm" != "$CLEAN_INSTANCE" ]; then
-        echo "Aborted."
-        exit 1
+    if ! $CLEAN_YES; then
+        read -p "Type the instance name to confirm: " confirm
+        if [ "$confirm" != "$CLEAN_INSTANCE" ]; then
+            echo "Aborted."
+            exit 1
+        fi
     fi
 
     echo

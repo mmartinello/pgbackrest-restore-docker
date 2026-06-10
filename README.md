@@ -246,14 +246,19 @@ Stops and permanently deletes the specified instance by running
 (PostgreSQL data, pgBackRest state, logs). This operation is irreversible.
 
 Before proceeding, the command asks you to type the instance name as confirmation.
+Pass `--yes` to skip the prompt (useful for scripting).
+
+| Option | Short | Description |
+|--------|-------|-------------|
+| `--yes` | `-y` | Skip confirmation prompt |
+| `--help` | `-h` | Show usage and exit |
 
 ```bash
+# Interactive — prompts for confirmation
 ./pgbackrest-restore.sh clean pgbackrest_restore_5432
-# WARNING: this will permanently delete instance 'pgbackrest_restore_5432'
-# and all its Docker volumes, including the PostgreSQL data.
-# This operation cannot be undone.
-#
-# Type the instance name to confirm: pgbackrest_restore_5432
+
+# Non-interactive — skips the prompt
+./pgbackrest-restore.sh clean pgbackrest_restore_5432 --yes
 ```
 
 ### restore — restore a backup
