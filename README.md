@@ -191,6 +191,20 @@ and removed. To also delete the volumes, run `docker compose down -v` manually a
 ./pgbackrest-restore.sh stop pgbackrest_restore_5432
 ```
 
+### restart — restart a restore instance
+
+```bash
+./pgbackrest-restore.sh restart INSTANCE
+```
+
+Restarts the specified instance by running `docker compose down` followed by
+`docker compose up -d --force-recreate`. Works whether the instance is currently
+running or already stopped. Docker volumes are preserved throughout.
+
+```bash
+./pgbackrest-restore.sh restart pgbackrest_restore_5432
+```
+
 ### restore — restore a backup
 
 ```bash

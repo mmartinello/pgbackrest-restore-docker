@@ -38,6 +38,7 @@ usage() {
     echo "  show       Show active restore instances"
     echo "  start      Start a restore instance"
     echo "  stop       Stop an active restore instance"
+    echo "  restart    Restart a restore instance"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
@@ -91,6 +92,22 @@ usage_start() {
     echo ""
     echo "Arguments:"
     echo "  INSTANCE    Name of the instance to start (e.g. pgbackrest_restore_5432)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help"
+    echo ""
+    echo "Use '$0 show' to list active instances."
+}
+
+usage_restart() {
+    echo "Usage: $0 restart INSTANCE"
+    echo ""
+    echo "Restarts the given restore instance (runs 'docker compose down' then"
+    echo "'docker compose up -d --force-recreate'). Works whether the instance"
+    echo "is currently running or stopped. Docker volumes are preserved."
+    echo ""
+    echo "Arguments:"
+    echo "  INSTANCE    Name of the instance to restart (e.g. pgbackrest_restore_5432)"
     echo ""
     echo "Options:"
     echo "  -h, --help    Show this help"
@@ -600,6 +617,8 @@ case "$1" in
                 usage_start; exit 0 ;;
             stop)
                 usage_stop; exit 0 ;;
+            restart)
+                usage_restart; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -679,6 +698,37 @@ case "$1" in
             echo "Error: instance name is required."
             echo ""
             usage_stop; exit 1
+        fi
+        ;;
+    restart)
+        COMMAND="restart"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_restart; exit 0 ;;
+                -*)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_restart; exit 1 ;;
+                *)
+                    if [ -n "$RESTART_INSTANCE" ]; then
+                        echo "Error: too many arguments."
+                        echo ""
+                        usage_restart; exit 1
+                    fi
+                    RESTART_INSTANCE="$1"; shift ;;
+            esac
+        done
+        if [ -z "$RESTART_INSTANCE" ]; then
+            echo "Error: instance name is required."
+            echo ""
+            usage_restart; exit 1
+        fi
+        if [[ ! "$RESTART_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+            echo "Error: '$RESTART_INSTANCE' is not a valid instance name."
+            echo "Expected format: pgbackrest_restore_<port>"
+            exit 1
         fi
         ;;
     list)
@@ -819,6 +869,43 @@ if [[ "$COMMAND" == "stop" ]]; then
         echo "Note: Docker volumes have been preserved. Run 'docker compose down -v' to remove them."
     else
         echo "Error: failed to stop instance '$STOP_INSTANCE' (exit code $exit_status)."
+    fi
+    exit $exit_status
+fi
+
+if [[ "$COMMAND" == "restart" ]]; then
+    echo "pgBackRest Restart Instance"
+    echo
+
+    RESTART_PORT="${RESTART_INSTANCE#pgbackrest_restore_}"
+
+    if ! docker volume inspect "${RESTART_INSTANCE}_data" > /dev/null 2>&1; then
+        echo "Error: no data volume found for instance '$RESTART_INSTANCE'."
+        echo "Run '$0 restore' first to create this instance."
+        exit 1
+    fi
+
+    echo "Stopping instance '$RESTART_INSTANCE' ..."
+    $DOCKER_COMPOSE_PATH -p "$RESTART_INSTANCE" down
+    exit_status=$?
+
+    if [ $exit_status -ne 0 ]; then
+        echo "Error: failed to stop instance '$RESTART_INSTANCE' (exit code $exit_status)."
+        exit $exit_status
+    fi
+
+    echo
+    echo "Starting instance '$RESTART_INSTANCE' ..."
+    POSTGRESQL_HOST_PORT="$RESTART_PORT" $DOCKER_COMPOSE_PATH -p "$RESTART_INSTANCE" up -d --force-recreate
+    exit_status=$?
+
+    echo
+    echo "========================================================================"
+    if [ $exit_status -eq 0 ]; then
+        echo "PostgreSQL is up and running!"
+        echo "Connection port: $RESTART_PORT"
+    else
+        echo "Error: failed to start instance '$RESTART_INSTANCE' (exit code $exit_status)."
     fi
     exit $exit_status
 fi
