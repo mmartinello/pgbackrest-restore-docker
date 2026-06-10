@@ -607,6 +607,12 @@ echo "pgBackRest Backup Restore"
 ##############################################################################
 # Main script
 
+# Select the PostgreSQL host port (must be first to build the project name)
+select_postgresql_port
+echo
+
+COMPOSE_PROJECT="pgbackrest_restore_${POSTGRESQL_HOST_PORT}"
+
 # Select the PostgreSQL version
 select_postgres_version
 echo
@@ -621,7 +627,7 @@ echo
 
 # Select the backup set to restore (skipped if a PITR time is set)
 if [ -z "$time_string" ]; then
-    backup_list_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
+    backup_list_cmd="$DOCKER_COMPOSE_PATH -p \"$COMPOSE_PROJECT\" run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
     backups_json=$(eval "$backup_list_cmd")
     choose_backup "$backups_json"
     echo
@@ -629,10 +635,6 @@ fi
 
 # Select databases to include
 select_databases
-echo
-
-# Select the PostgreSQL host port
-select_postgresql_port
 echo
 
 # Print debug
@@ -646,7 +648,7 @@ if $CLI_DEBUG; then
 fi
 
 # Basic pgBackRest restore command
-restore_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER"
+restore_cmd="$DOCKER_COMPOSE_PATH -p \"$COMPOSE_PROJECT\" run --rm $PGBACKREST_DOCKER_CONTAINER"
 restore_cmd+=" pgbackrest restore"
 restore_cmd+=" --log-level-console=$LOG_LEVEL"
 restore_cmd+=" --stanza=$stanza"
@@ -717,7 +719,7 @@ if [ -f ".env" ]; then
 fi
 echo
 echo "Checking if PostgreSQL datadir contains data ..."
-$DOCKER_COMPOSE_PATH run --rm -T "$PGBACKREST_DOCKER_CONTAINER" sh -c "[ -z \"\$(ls -A $POSTGRESQL_DATA_DIR)\" ]" 2>/dev/null
+$DOCKER_COMPOSE_PATH -p "$COMPOSE_PROJECT" run --rm -T "$PGBACKREST_DOCKER_CONTAINER" sh -c "[ -z \"\$(ls -A $POSTGRESQL_DATA_DIR)\" ]" 2>/dev/null
 
 # Exit if stanza does not exist
 if [ $? -ne 0 ]; then
@@ -756,7 +758,7 @@ else
   # Start PostgreSQL Docker container
   echo "Starting PostgreSQL Docker container ..."
 
-  cmd="$DOCKER_COMPOSE_PATH up -d --force-recreate"
+  cmd="$DOCKER_COMPOSE_PATH -p $COMPOSE_PROJECT up -d --force-recreate"
   $cmd
   exit_status=$?
 
