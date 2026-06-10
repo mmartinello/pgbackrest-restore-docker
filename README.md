@@ -133,6 +133,28 @@ Pass `--stanza` to skip the interactive prompt:
 ./pgbackrest-restore.sh list --stanza my_stanza
 ```
 
+### show — show active restore instances
+
+```bash
+./pgbackrest-restore.sh show
+```
+
+Lists all active restore instances started from the `docker-compose.yml` in the current
+directory. For each instance the project name, Docker Compose status, and the PostgreSQL
+host port are shown. Useful when multiple restores are running in parallel (one per port)
+and you need a quick overview.
+
+Example output:
+
+```
+pgBackRest Restore Instances
+
+  PROJECT                                   STATUS                PORT
+  -------                                   ------                ----
+  pgbackrest_restore_5432                   running(1)            5432
+  pgbackrest_restore_15432                  running(1)            15432
+```
+
 ### restore — restore a backup
 
 ```bash
@@ -143,15 +165,15 @@ Run without options to be guided through every parameter step by step.
 
 The script will ask:
 
-1. **PostgreSQL version** — major version to use (default from `.env`)
-2. **Stanza** — which stanza to restore from (read from `pgbackrest.conf`)
-3. **PITR target time** — optional point-in-time recovery timestamp
-   (`YYYY-MM-DD HH:MM:SS`); press ENTER to skip and select a backup set instead
-4. **Backup set** — select from a paginated list sorted most-recent-first; press
-   ENTER to use the latest available backup (skipped if a PITR time was provided)
-5. **Databases to include** — space-separated list; press ENTER to restore all
-6. **Host port** — port exposed on the Docker host; the script checks availability
+1. **Host port** — port exposed on the Docker host; the script checks availability
    automatically and falls back to `POSTGRESQL_HOST_PORT_RANGE` if the default is busy
+2. **PostgreSQL version** — major version to use (default from `.env`)
+3. **Stanza** — which stanza to restore from (read from `pgbackrest.conf`)
+4. **PITR target time** — optional point-in-time recovery timestamp
+   (`YYYY-MM-DD HH:MM:SS`); press ENTER to skip and select a backup set instead
+5. **Backup set** — select from a paginated list sorted most-recent-first; press
+   ENTER to use the latest available backup (skipped if a PITR time was provided)
+6. **Databases to include** — space-separated list; press ENTER to restore all
 
 #### Non-interactive (CLI) mode
 

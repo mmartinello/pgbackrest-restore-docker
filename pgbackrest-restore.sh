@@ -35,6 +35,7 @@ usage() {
     echo "Commands:"
     echo "  restore    Restore a pgBackRest backup"
     echo "  list       List available backups"
+    echo "  show       Show active restore instances"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
@@ -68,6 +69,15 @@ usage_restore() {
     echo "  -h, --help                            Show this help"
     echo ""
     echo "If no options are provided, all parameters are asked interactively."
+}
+
+usage_show() {
+    echo "Usage: $0 show"
+    echo ""
+    echo "Shows all active restore instances started from this project's docker-compose.yml."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help    Show this help"
 }
 
 # Select the PostgreSQL version to use
@@ -494,6 +504,44 @@ list_backups() {
     done
 }
 
+# Show active restore instances started from this project's docker-compose.yml
+show_instances() {
+    local config_file
+    config_file="$(pwd)/docker-compose.yml"
+
+    local instances_json
+    instances_json=$(docker compose ls --format json 2>/dev/null | \
+        $jq_cmd_path --arg cf "$config_file" \
+        '[.[] | select(.ConfigFiles | split(",") | map(ltrimstr(" ") | rtrimstr(" ")) | any(. == $cf))]')
+
+    local total
+    total=$(echo "$instances_json" | $jq_cmd_path 'length')
+
+    if [ "$total" -eq 0 ]; then
+        echo "No active restore instances found."
+        return 0
+    fi
+
+    echo "Active restore instances:"
+    echo
+    printf "  %-40s  %-20s  %s\n" "PROJECT" "STATUS" "PORT"
+    printf "  %-40s  %-20s  %s\n" "-------" "------" "----"
+
+    while IFS= read -r entry; do
+        local name status port
+        name=$(echo "$entry" | $jq_cmd_path -r '.Name')
+        status=$(echo "$entry" | $jq_cmd_path -r '.Status')
+        if [[ "$name" =~ ^pgbackrest_restore_([0-9]+)$ ]]; then
+            port="${BASH_REMATCH[1]}"
+        else
+            port="-"
+        fi
+        printf "  %-40s  %-20s  %s\n" "$name" "$status" "$port"
+    done < <(echo "$instances_json" | $jq_cmd_path -c '.[]')
+
+    echo
+}
+
 # Parse command-line arguments
 
 # No arguments: command is required
@@ -513,6 +561,8 @@ case "$1" in
                 usage_restore; exit 0 ;;
             list)
                 usage_list; exit 0 ;;
+            show)
+                usage_show; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -523,6 +573,20 @@ case "$1" in
         ;;
     help)
         usage; exit 0 ;;
+    show)
+        COMMAND="show"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_show; exit 0 ;;
+                *)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_show; exit 1 ;;
+            esac
+        done
+        ;;
     list)
         COMMAND="list"
         shift
@@ -599,6 +663,13 @@ if [[ "$COMMAND" == "list" ]]; then
     backup_list_cmd="$DOCKER_COMPOSE_PATH run --rm $PGBACKREST_DOCKER_CONTAINER pgbackrest --stanza=$stanza info --output=json 2>/dev/null"
     backups_json=$(eval "$backup_list_cmd")
     list_backups "$backups_json"
+    exit 0
+fi
+
+if [[ "$COMMAND" == "show" ]]; then
+    echo "pgBackRest Restore Instances"
+    echo
+    show_instances
     exit 0
 fi
 
