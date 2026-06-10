@@ -756,11 +756,9 @@ else
   # Start PostgreSQL Docker container
   echo "Starting PostgreSQL Docker container ..."
 
-  cmd="$DOCKER_COMPOSE_PATH up -d"
+  cmd="$DOCKER_COMPOSE_PATH up -d --force-recreate"
   $cmd
   exit_status=$?
-
-  source .env
 
   echo
   echo "========================================================================"
