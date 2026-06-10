@@ -223,6 +223,18 @@ Shows the logs for all services of the specified instance via `docker compose lo
 ./pgbackrest-restore.sh logs pgbackrest_restore_5432 --follow
 ```
 
+### ps — show services of a restore instance
+
+```bash
+./pgbackrest-restore.sh ps INSTANCE
+```
+
+Shows the status of all services for the specified instance via `docker compose ps`.
+
+```bash
+./pgbackrest-restore.sh ps pgbackrest_restore_5432
+```
+
 ### restore — restore a backup
 
 ```bash

@@ -40,6 +40,7 @@ usage() {
     echo "  stop       Stop an active restore instance"
     echo "  restart    Restart a restore instance"
     echo "  logs       Show logs of a restore instance"
+    echo "  ps         Show services of a restore instance"
     echo "  help       Show this help"
     echo ""
     echo "Options:"
@@ -126,6 +127,20 @@ usage_logs() {
     echo ""
     echo "Options:"
     echo "  -f, --follow  Follow log output"
+    echo "  -h, --help    Show this help"
+    echo ""
+    echo "Use '$0 show' to list active instances."
+}
+
+usage_ps() {
+    echo "Usage: $0 ps INSTANCE"
+    echo ""
+    echo "Shows the services and their status for the given restore instance."
+    echo ""
+    echo "Arguments:"
+    echo "  INSTANCE    Name of the instance (e.g. pgbackrest_restore_5432)"
+    echo ""
+    echo "Options:"
     echo "  -h, --help    Show this help"
     echo ""
     echo "Use '$0 show' to list active instances."
@@ -637,6 +652,8 @@ case "$1" in
                 usage_restart; exit 0 ;;
             logs)
                 usage_logs; exit 0 ;;
+            ps)
+                usage_ps; exit 0 ;;
             "")
                 usage; exit 0 ;;
             *)
@@ -779,6 +796,37 @@ case "$1" in
         fi
         if [[ ! "$LOGS_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
             echo "Error: '$LOGS_INSTANCE' is not a valid instance name."
+            echo "Expected format: pgbackrest_restore_<port>"
+            exit 1
+        fi
+        ;;
+    ps)
+        COMMAND="ps"
+        shift
+        while [[ $# -gt 0 ]]; do
+            case "$1" in
+                -h|--help)
+                    usage_ps; exit 0 ;;
+                -*)
+                    echo "Error: unknown option '$1'"
+                    echo ""
+                    usage_ps; exit 1 ;;
+                *)
+                    if [ -n "$PS_INSTANCE" ]; then
+                        echo "Error: too many arguments."
+                        echo ""
+                        usage_ps; exit 1
+                    fi
+                    PS_INSTANCE="$1"; shift ;;
+            esac
+        done
+        if [ -z "$PS_INSTANCE" ]; then
+            echo "Error: instance name is required."
+            echo ""
+            usage_ps; exit 1
+        fi
+        if [[ ! "$PS_INSTANCE" =~ ^pgbackrest_restore_[0-9]+$ ]]; then
+            echo "Error: '$PS_INSTANCE' is not a valid instance name."
             echo "Expected format: pgbackrest_restore_<port>"
             exit 1
         fi
@@ -960,6 +1008,17 @@ if [[ "$COMMAND" == "restart" ]]; then
         echo "Error: failed to start instance '$RESTART_INSTANCE' (exit code $exit_status)."
     fi
     exit $exit_status
+fi
+
+if [[ "$COMMAND" == "ps" ]]; then
+    if ! docker volume inspect "${PS_INSTANCE}_data" > /dev/null 2>&1; then
+        echo "Error: no data volume found for instance '$PS_INSTANCE'."
+        echo "Run '$0 restore' first to create this instance."
+        exit 1
+    fi
+
+    $DOCKER_COMPOSE_PATH -p "$PS_INSTANCE" ps
+    exit $?
 fi
 
 if [[ "$COMMAND" == "logs" ]]; then
