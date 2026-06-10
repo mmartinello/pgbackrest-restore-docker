@@ -13,3 +13,7 @@ DEADJOE
 .env.*
 !.env.sample
 pgbackrest.conf
+
+TODO.txt
+.ansible
+.claude
